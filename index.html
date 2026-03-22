@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meesho - Return Shipments Scanner</title>
+    <link rel="stylesheet" href="./style.css" />
+
+    <!-- html5-qrcode: camera scanner for QR and supported barcodes -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/dist/html5-qrcode.min.js"></script>
+
+    <script src="./script.js" defer></script>
+  </head>
+  <body>
+    <main id="app">
+      <!-- HOME SCREEN -->
+      <section id="homeScreen" class="screen active" aria-label="Home screen">
+        <div class="home">
+          <header class="brand">
+            <div class="logo" aria-hidden="true"></div>
+            <div class="brand-text">
+              <h1 class="brand-title">Meesho</h1>
+              <p class="brand-subtitle">Return Shipments Scanner</p>
+            </div>
+          </header>
+
+          <div class="home-input-wrap">
+            <div class="waybill-pill" role="group" aria-label="Waybill scanner input">
+              <div class="barcode-icon" aria-hidden="true"></div>
+              <input
+                id="homeInput"
+                class="waybill-input"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="Scan or enter waybill..."
+                aria-label="Scan or enter waybill"
+              />
+              <button id="cameraBtn" class="camera-btn" type="button" aria-label="Open camera">
+                <span class="camera-btn-inner" aria-hidden="true"></span>
+              </button>
+            </div>
+
+            <p class="scanned-count">
+              Scanned Orders: <span id="scannedCountHome">0</span>
+            </p>
+          </div>
+
+          <div class="home-footer-hint">
+            Tip: You can type a waybill and press Enter, or scan using the camera button.
+          </div>
+        </div>
+      </section>
+
+      <!-- SCANNER SCREEN -->
+      <section id="scannerScreen" class="screen" aria-label="Scanner screen">
+        <div class="scanner">
+          <div class="topbar">
+            <button id="backBtn" class="icon-btn" type="button" aria-label="Back to home">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M14.5 5.5L8 12l6.5 6.5"
+                  stroke="currentColor"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+            <div class="topbar-title">Scan Your Shipments</div>
+            <div class="topbar-spacer" aria-hidden="true"></div>
+          </div>
+
+          <div id="cameraStatus" class="status-banner hidden" role="status" aria-live="polite"></div>
+
+          <div class="progress-row" aria-label="Scanning progress">
+            <div class="progress-meta">
+              <div class="progress-label">Scanned Orders</div>
+              <div class="progress-value">
+                <span id="progressCount">0</span> <span class="progress-sep">/</span>
+                <span id="progressTotal">64</span>
+              </div>
+            </div>
+
+            <div class="progress-badge" aria-label="Percent scanned">
+              <span id="progressPercent">0</span>%
+            </div>
+          </div>
+
+          <div class="scanner-area">
+            <div class="scan-hint">Please Scan Waybill</div>
+
+            <div class="scanner-visual" aria-label="Scanner frame">
+              <div id="scannerViewport" class="scanner-viewport" aria-label="Camera view">
+                <!-- html5-qrcode will inject video/canvas inside this container -->
+              </div>
+
+              <!-- Visual overlay (corners + animated scan line) -->
+              <div class="frame-overlay" aria-hidden="true">
+                <div class="scan-frame">
+                  <div class="corner c1"></div>
+                  <div class="corner c2"></div>
+                  <div class="corner c3"></div>
+                  <div class="corner c4"></div>
+                  <div class="scan-line"></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite">
+              <div class="spinner" aria-hidden="true"></div>
+              <div class="loading-text">Initializing camera...</div>
+            </div>
+          </div>
+
+          <div class="bottom-section">
+            <div class="bottom-hint">Use Keyboard / HHD to enter Waybill Number</div>
+
+            <div class="bottom-actions">
+              <button id="manualBtn" class="btn bottom-btn" type="button">
+                <div class="bottom-btn-icon" aria-hidden="true"></div>
+                <div class="bottom-btn-text">Enter Waybill no.</div>
+              </button>
+              <button id="hhdBtn" class="btn bottom-btn" type="button">
+                <div class="bottom-btn-icon" aria-hidden="true"></div>
+                <div class="bottom-btn-text">HHD Input</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Toast -->
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+      <!-- Modal for manual input -->
+      <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-card" role="document">
+          <div class="modal-header">
+            <div id="modalTitle" class="modal-title">Enter value</div>
+          </div>
+          <input
+            id="modalInput"
+            class="modal-input"
+            type="text"
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="Type value here..."
+          />
+          <div class="modal-actions">
+            <button id="modalCancel" class="btn btn-ghost" type="button">Cancel</button>
+            <button id="modalSave" class="btn btn-primary" type="button">Add</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
