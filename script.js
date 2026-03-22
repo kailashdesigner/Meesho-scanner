@@ -73,6 +73,41 @@
   // ---------------------------
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
+  /** Prevents `Html5Qrcode.start()` from hanging forever (common on some mobile browsers). */
+  const CAMERA_START_TIMEOUT_MS = 18000;
+
+  function promiseWithTimeout(promise, ms, label = "Operation") {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => {
+        reject(new Error(`${label} timed out after ${ms}ms`));
+      }, ms);
+      promise.then(
+        (v) => {
+          clearTimeout(t);
+          resolve(v);
+        },
+        (e) => {
+          clearTimeout(t);
+          reject(e);
+        }
+      );
+    });
+  }
+
+  async function safeCleanupScannerInstance(instance) {
+    if (!instance) return;
+    try {
+      await instance.stop();
+    } catch (_) {
+      /* not running */
+    }
+    try {
+      instance.clear?.();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function sanitizeValue(value) {
     // Keep it conservative: trim, collapse spaces. Do not transform aggressively.
     return String(value || "")
@@ -311,12 +346,31 @@
     setCameraStatus("", false);
     showLoading(true);
 
+    if (typeof Html5Qrcode === "undefined") {
+      setCameraStatus(
+        "Scanner could not load (offline or blocked CDN). Refresh the page or check your connection.",
+        true
+      );
+      showToast("Scanner library missing.");
+      showLoading(false);
+      scannerStarting = false;
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraStatus("Camera is not supported in this browser. Try Chrome or Safari, or use manual input.", true);
+      showToast("Camera not supported.");
+      showLoading(false);
+      scannerStarting = false;
+      return;
+    }
+
+    let instance = null;
     try {
-      // Create a fresh instance when re-opening, for more reliable lifecycle.
-      html5QrcodeScanner = new Html5Qrcode("scannerViewport");
+      instance = new Html5Qrcode("scannerViewport");
+      html5QrcodeScanner = instance;
 
       const onSuccess = (decodedText) => {
-        // decodedText can be empty or unexpected
         if (!decodedText) return;
         addScannedValue(decodedText, "scan");
       };
@@ -325,33 +379,67 @@
         // Ignore most "no code found" errors to avoid UI spam.
       };
 
-      // Start with rear camera
-      try {
-        await html5QrcodeScanner.start(
-          { facingMode: "environment" },
-          undefined,
-          onSuccess,
-          onError
+      const startWithTimeout = (cameraIdOrConfig) =>
+        promiseWithTimeout(
+          instance.start(cameraIdOrConfig, undefined, onSuccess, onError),
+          CAMERA_START_TIMEOUT_MS,
+          "Camera start"
         );
+
+      const tryCameraIdList = async () => {
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices || !devices.length) {
+          throw new Error("No camera devices found");
+        }
+        const preferBack =
+          devices.find((d) => /back|rear|environment|wide/i.test(d.label || "")) ||
+          devices[devices.length - 1];
+        await startWithTimeout(preferBack.id);
+      };
+
+      try {
+        await startWithTimeout({ facingMode: "environment" });
       } catch (err) {
-        if (shouldRetryWithUserFacing(err)) {
-          await html5QrcodeScanner.start({ facingMode: "user" }, undefined, onSuccess, onError);
-        } else {
+        await safeCleanupScannerInstance(instance);
+        if (!shouldRetryWithUserFacing(err)) {
           throw err;
+        }
+        instance = new Html5Qrcode("scannerViewport");
+        html5QrcodeScanner = instance;
+        try {
+          await startWithTimeout({ facingMode: "user" });
+        } catch (_err2) {
+          await safeCleanupScannerInstance(instance);
+          instance = new Html5Qrcode("scannerViewport");
+          html5QrcodeScanner = instance;
+          await tryCameraIdList();
         }
       }
 
       scannerRunning = true;
       setCameraStatus("", false);
     } catch (err) {
-      const msg = String(err && (err.message || err.name || err.toString())).trim();
-      const friendly =
-        msg && msg.toLowerCase().includes("permission")
-          ? "Camera permission denied. Please allow camera access or use manual input."
-          : "Unable to start camera. Please allow camera access or use manual input.";
+      const raw = String(err && (err.message || err.name || err.toString())).trim();
+      const lower = raw.toLowerCase();
+
+      await safeCleanupScannerInstance(html5QrcodeScanner);
+      html5QrcodeScanner = null;
+      scannerRunning = false;
+
+      let friendly =
+        "Unable to start camera. Tap the camera button again, allow permission, or use manual input.";
+      if (lower.includes("permission") || lower.includes("denied")) {
+        friendly =
+          "Camera permission denied. Allow camera in browser settings for this site, then try again.";
+      } else if (lower.includes("timed out")) {
+        friendly =
+          "Camera took too long to start. Try again, move to better light, or use manual entry.";
+      } else if (lower.includes("not supported") || lower.includes("no camera")) {
+        friendly = "No usable camera found. Use manual input below.";
+      }
+
       setCameraStatus(friendly, true);
       showToast("Camera could not start.");
-      scannerRunning = false;
     } finally {
       showLoading(false);
       scannerStarting = false;
